@@ -46,7 +46,7 @@ class HomographyEstimator:
         """
         Build the homography matrix using the matched keypoints.
         """
-        homography = None
+        homography, matched_image = None
         
         keypoints1, descriptors1 = self.detect_keypoints_and_descriptors(
             self.image1)
@@ -56,20 +56,31 @@ class HomographyEstimator:
         matches = self.match_keypoints(descriptors1, descriptors2)
         
         if len(matches) > self.min_match_count:
-            src_pts = np.float32(
+            image1_points = np.float32(
                 [keypoints1[m.queryIdx].pt for m in matches]
             ).reshape(-1, 1, 2)
             
-            dst_pts = np.float32(
+            image2_points = np.float32(
                 [keypoints2[m.trainIdx].pt for m in matches]
             ).reshape(-1, 1, 2)
             
-            homography, _ = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
+            homography, mask = cv.findHomography(
+                image1_points,
+                image2_points,
+                cv.RANSAC,
+                5.0
+            )
             homography = homography.astype(np.float32)
             
-        matched_image = cv.drawMatches(
-            self.image1, keypoints1, self.image2, keypoints2,
-            matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
-        )
+            draw_params = dict(
+                singlePointColor=None,
+                matchesMask=mask.ravel().tolist(),
+                flags=2
+            )
+            matched_image = cv.drawMatches(
+                self.image1, keypoints1,
+                self.image2, keypoints2,
+                matches, None, **draw_params
+            )
             
         return homography, matched_image

@@ -8,6 +8,6 @@ if __name__ == "__main__":
     homography_matrix, matched_image = estimator.build_homography()
 
     if homography_matrix is not None:
-        plt.imshow(matched_image)
+        plt.imshow(matched_image, cmap='gray')
         plt.axis('off')
         plt.show()
