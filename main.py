@@ -1,13 +1,22 @@
 import matplotlib.pyplot as plt
+import cv2 as cv
 
-from src.homography_estimator import HomographyEstimator
+from src.warping import Warping
 
 
 if __name__ == "__main__":
-    estimator = HomographyEstimator('images/room1.jpg', 'images/room2.jpg')
-    homography_matrix, matched_image = estimator.build_homography()
-
-    if homography_matrix is not None:
-        plt.imshow(matched_image, cmap='gray')
-        plt.axis('off')
-        plt.show()
+    images_path = [
+        "images/S1.jpg",
+        "images/S2.jpg",
+        "images/S3.jpg",
+        "images/S5.jpg",
+        "images/S6.jpg",
+    ]
+    image_center = 2
+    warping = Warping(images_path, image_center)
+    
+    panorama = warping.create_panorama()
+    
+    plt.imshow(cv.cvtColor(panorama, cv.COLOR_BGR2RGB))
+    plt.axis("off")
+    plt.show()

@@ -3,9 +3,9 @@ import numpy as np
 
 
 class HomographyEstimator:
-    def __init__(self, image1_paht, image2_path, min_match_count=4):
-        self.image1 = cv.imread(image1_paht)
-        self.image2 = cv.imread(image2_path)
+    def __init__(self, image1, image2, min_match_count=4):
+        self.image1 = image1
+        self.image2 = image2
         
         self.min_match_count = min_match_count
         
@@ -46,7 +46,7 @@ class HomographyEstimator:
         """
         Build the homography matrix using the matched keypoints.
         """
-        homography, matched_image = None
+        homography = matched_image = None
         
         keypoints1, descriptors1 = self.detect_keypoints_and_descriptors(
             self.image1)
