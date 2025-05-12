@@ -40,7 +40,7 @@ class Warping:
     def create_panorama(self):
         """
         Create the panorama by warping all images to the canvas
-        defined by the homographies.
+        defined by the homographies and applying blending.
         """
         panorama = None
         
@@ -49,17 +49,19 @@ class Warping:
         
         for image, homography in zip(self.images, homographies_list):
             h, w, _ = image.shape
-            corners = np.float32(
+            image_corners = np.float32(
                 [[0, 0], [0, h], [w, h], [w, 0]]
             ).reshape(-1, 1, 2)
-            corners.append(cv.perspectiveTransform(corners, homography))
-        corners = np.concatenate(corners, axis=0)
+            transformed_corners = cv.perspectiveTransform(image_corners, homography)
+            corners.append(transformed_corners)
+        corners = np.vstack(corners)  # Use vstack to combine all corner arrays
 
         x_min, y_min = np.int32(corners.min(axis=0).ravel() - 0.5)
         x_max, y_max = np.int32(corners.max(axis=0).ravel() + 0.5)
         canvas_w, canvas_h = x_max - x_min, y_max - y_min
         
-        panorama = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+        panorama = np.zeros((canvas_h, canvas_w, 3), dtype=np.float32)
+        weight_map = np.zeros((canvas_h, canvas_w), dtype=np.float32)
         
         translation_matrix = np.array([[1, 0, -x_min], [0, 1, -y_min], [0, 0, 1]], np.float32)
         
@@ -68,7 +70,22 @@ class Warping:
                 image, translation_matrix @ homography, (canvas_w, canvas_h),
                 flags=cv.INTER_LINEAR
             )
-            mask = (warped > 0).any(axis=2)
-            panorama[mask] = warped[mask]
+            
+            # Create a weight map for blending
+            mask = (warped > 0).any(axis=2).astype(np.float32)
+            distance_transform = cv.distanceTransform(mask.astype(np.uint8), cv.DIST_L2, 5)
+            normalized_weights = distance_transform / distance_transform.max()
+            
+            # Blend the warped image into the panorama
+            for c in range(3):  # Iterate over color channels
+                panorama[:, :, c] += warped[:, :, c] * normalized_weights
+            weight_map += normalized_weights
 
+        # Normalize the panorama by the weight map to avoid overexposure
+        for c in range(3):
+            panorama[:, :, c] /= np.maximum(weight_map, 1e-6)
+
+        # Convert back to uint8 for display
+        panorama = np.clip(panorama, 0, 255).astype(np.uint8)
+        
         return panorama
