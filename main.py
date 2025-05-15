@@ -13,7 +13,7 @@ if __name__ == "__main__":
         "images/S6.jpg",
     ]
     image_center = 2
-    warping = Warping(images_path, image_center)
+    warping = Warping(images_path, image_center, blend=True)
     
     panorama = warping.create_panorama()
     

@@ -5,9 +5,10 @@ from src.homography_estimator import HomographyEstimator
 
 
 class Warping:
-    def __init__(self, image_paths_list, center_idx):
+    def __init__(self, image_paths_list, center_idx, blend=False):
         self.images = [cv.imread(image) for image in image_paths_list]
         self.center = center_idx
+        self.blend = blend
 
     def compute_cumulative_homographies(self):
         """
@@ -49,26 +50,42 @@ class Warping:
         
         for image, homography in zip(self.images, homographies_list):
             h, w, _ = image.shape
-            corners = np.float32(
+            corners_image = np.float32(
                 [[0, 0], [0, h], [w, h], [w, 0]]
             ).reshape(-1, 1, 2)
-            corners.append(cv.perspectiveTransform(corners, homography))
+            corners.append(cv.perspectiveTransform(corners_image, homography))
         corners = np.concatenate(corners, axis=0)
 
         x_min, y_min = np.int32(corners.min(axis=0).ravel() - 0.5)
         x_max, y_max = np.int32(corners.max(axis=0).ravel() + 0.5)
-        canvas_w, canvas_h = x_max - x_min, y_max - y_min
+        canvas_width, canvas_height = x_max - x_min, y_max - y_min
         
-        panorama = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+        accumulated_image = np.zeros((canvas_height, canvas_width, 3), dtype=np.float32)
+        accumulated_weight = np.zeros((canvas_height, canvas_width), dtype=np.float32)
+        
+        panorama = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
         
         translation_matrix = np.array([[1, 0, -x_min], [0, 1, -y_min], [0, 0, 1]], np.float32)
         
         for image, homography in zip(self.images, homographies_list):
             warped = cv.warpPerspective(
-                image, translation_matrix @ homography, (canvas_w, canvas_h),
+                image, translation_matrix @ homography, (canvas_width, canvas_height),
                 flags=cv.INTER_LINEAR
             )
             mask = (warped > 0).any(axis=2)
-            panorama[mask] = warped[mask]
+            
+            if not self.blend:
+                panorama[mask] = warped[mask]
+            else:
+                mask = (warped > 0).any(axis=2).astype(np.uint8)
+                dist = cv.distanceTransform(mask, cv.DIST_L2, 3)
+                weight = dist / dist.max()
 
+                for c in range(3):
+                    accumulated_image[:, :, c] += warped[:, :, c].astype(np.float32) * weight
+                accumulated_weight += weight
+                
+        if self.blend:
+            panorama = (accumulated_image / (accumulated_weight[..., None] + 1e-8)).astype(np.uint8)
+            
         return panorama
